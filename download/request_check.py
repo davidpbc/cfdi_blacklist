@@ -87,7 +87,7 @@ class RequestCheck():
 
         x509serialnumber.text = self.fiel.get_serial()
         
-        return etree.tostring(soap_req, encoding='unicode')
+        return etree.tostring(soap_req, encoding='utf-8')
     
     def verificar_descarga(self, token, requester_rfc, req_id):
         

@@ -98,7 +98,7 @@ class RequestDownload():
 
         x509serialnumber.text = self.fiel.get_serial()
         
-        return etree.tostring(soap_req, encoding='unicode')
+        return etree.tostring(soap_req, encoding='utf-8')
 
     def request_download(
             self, token, requester_rfc, init_date, end_date,

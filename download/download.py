@@ -87,7 +87,7 @@ class DescargaMasiva():
 
         x509serialnumber.text = self.fiel.get_serial()
         
-        return etree.tostring(soap_req, encoding='unicode')
+        return etree.tostring(soap_req, encoding='utf-8')
     
     def descargar_paquete(self, token, requester_rfc, pack_id):
         
