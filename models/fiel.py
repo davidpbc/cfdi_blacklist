@@ -16,4 +16,4 @@ class Fiel(Base):
 
     def __repr__(self):
         return "<Fiel(name='{}', empresa='{}')>" \
-                .format(self.name, self.partner_id)
+                .format(self.name, self.empresa)

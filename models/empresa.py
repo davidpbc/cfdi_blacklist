@@ -12,5 +12,5 @@ class Empresa(Base):
     fiels = relationship('Fiel', back_populates="empresa")
 
     def __repr__(self):
-        return "<Partner(rfc='{}', name='{}', fiels='{}')>" \
+        return "<Empresa(rfc='{}', name='{}', fiels='{}')>" \
                 .format(self.rfc, self.name, self.fiel_ids)
