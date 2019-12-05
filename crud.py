@@ -3,15 +3,14 @@ from datetime import datetime
 
 from sqlalchemy import create_engine
 from config import DATABASE_URI
-from models.blacklist import Base, Blacklist
+from models.base import Session, engine, Base
+from models.blacklist import Blacklist
+from models.empresa import Empresa
+from models.fiel import Fiel
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 import csv
 import chardet
-
-engine = create_engine(DATABASE_URI)
-
-Session = sessionmaker(bind=engine)
 
 @contextmanager
 def session_scope():
@@ -24,6 +23,13 @@ def session_scope():
         raise
     finally:
         session.close()
+
+
+def recreate_table(table):
+    Base.metadata.drop_all(
+        engine, tables=[Base.metadata.tables[table.__tablename__]])
+    Base.metadata.create_all(
+        engine, tables=[Base.metadata.tables[table.__tablename__]])
 
 
 def recreate_database():
@@ -39,7 +45,7 @@ def load_def_csv(filename):
         'def_col': 3,
         'pre_fecha_col': 5,
         'pre_fecha_fmt': "%d/%m/%Y",
-        'def_fecha_col': 11,
+        'def_fecha_col': 12,
         'def_fecha_fmt': "%d/%m/%y",
     }
     load_csv(filename, **data)

@@ -21,7 +21,7 @@ class RequestCheck():
     
     def generate_soapreq(self, requester_rfc, req_id):
         soap_req = etree.Element('{{{}}}{}'.format(self.NSMAP['s'], 'Envelope'), nsmap=self.NSMAP)
-        
+
         etree.SubElement(soap_req, '{{{}}}{}'.format(self.NSMAP['s'], 'Header'))
 
         body = etree.SubElement(soap_req, '{{{}}}{}'.format(self.NSMAP['s'], 'Body'))
@@ -89,7 +89,7 @@ class RequestCheck():
         
         return etree.tostring(soap_req, encoding='utf-8')
     
-    def verificar_descarga(self, token, requester_rfc, req_id):
+    def check_request(self, token, requester_rfc, req_id):
         
         soapreq = self.generate_soapreq(requester_rfc, req_id)
 

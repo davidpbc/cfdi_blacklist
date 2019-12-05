@@ -131,5 +131,5 @@ dmypy.json
 # Visual Studio Garbage
 .vscode/
 FIEL/
-
-test_cert.py
+sample.zip
+test_*

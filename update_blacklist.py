@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from crud import Session, load_pre_csv, load_def_csv, recreate_database
+from crud import load_pre_csv, load_def_csv, recreate_table
+from models.base import Session
 from models.blacklist import Blacklist
 import urllib.request
 import shutil
@@ -9,7 +10,9 @@ import os
 
 s = Session()
 
-recreate_database()
+print(Blacklist.__tablename__)
+recreate_table(Blacklist)
+
 # URL General SAT
 url = "http://omawww.sat.gob.mx/cifras_sat/Documents/"
 script_path = os.path.dirname(__file__)

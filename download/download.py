@@ -7,19 +7,19 @@ from lxml import etree
 RESPONSE_STR = 'Respuesta del servicio de Descarga Masiva: {}'
 
 
-class DescargaMasiva():
+class DownloadCFDi():
     URL_DOWNLOAD = 'https://cfdidescargamasiva.clouda.sat.gob.mx/DescargaMasivaService.svc'
     SOAP_ACTION = 'http://DescargaMasivaTerceros.sat.gob.mx/IDescargaMasivaTercerosService/Descargar'
     NSMAP = {
         's': 'http://schemas.xmlsoap.org/soap/envelope/',
         'des': 'http://DescargaMasivaTerceros.sat.gob.mx',
-        'xd': 'http://www.w3.org/2000/09/xmldsig#'
+        'xd': 'http://www.w3.org/2000/09/xmldsig#',
     }    
     
     def __init__(self, fiel):
         self.fiel = fiel
 
-    def __generar_soapreq__(self, requester_rfc, id_pack):
+    def generate_soapreq(self, requester_rfc, id_pack):
         soap_req = etree.Element('{{{}}}{}'.format(self.NSMAP['s'], 'Envelope'), nsmap=self.NSMAP)
         
         etree.SubElement(soap_req, '{{{}}}{}'.format(self.NSMAP['s'], 'Header'))
@@ -89,9 +89,9 @@ class DescargaMasiva():
         
         return etree.tostring(soap_req, encoding='utf-8')
     
-    def descargar_paquete(self, token, requester_rfc, pack_id):
+    def download_package(self, token, requester_rfc, pack_id):
         
-        soapreq = self.__generar_soapreq__(requester_rfc, pack_id)
+        soapreq = self.generate_soapreq(requester_rfc, pack_id)
 
         headers = {
             'Content-type': 'text/xml;charset="utf-8"',
