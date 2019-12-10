@@ -1,7 +1,10 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer, String, Date, Boolean
-from .base import Base
+from .base import Base, Session
+from .fiel import Fiel
+
+s = Session()
 
 
 class Empresa(Base):
@@ -9,8 +12,39 @@ class Empresa(Base):
     id = Column(Integer, primary_key=True)
     rfc = Column(String, nullable=False)
     name = Column(String, nullable=False)
-    fiels = relationship('Fiel', back_populates="empresa")
+    fiels = relationship(
+            'Fiel',
+            order_by=Fiel.id,
+            back_populates="empresa",
+            cascade='all, delete, delete-orphan'
+    )
 
     def __repr__(self):
         return "<Empresa(rfc='{}', name='{}', fiels='{}')>" \
                 .format(self.rfc, self.name, self.fiel_ids)
+
+    @classmethod
+    def find_by_id(cls, id):
+        e = s.query(cls).filter_by(id=id).first()
+        if e:
+            return e
+
+    @classmethod
+    def find_by_rfc(cls, rfc):
+        e = s.query(cls).filter_by(rfc=rfc).first()
+        if e:
+            return e
+
+    @classmethod
+    def find_by_name(cls, name):
+        e = s.query(cls).filter_by(name=name).first
+        if e:
+            return e
+
+    def save_to_db(self):
+        s.add(self)
+        s.commit()
+
+    def delete(self):
+        s.delete(self)
+        s.commit()
