@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Column, Integer, String, Date, Boolean
 from .base import Base, Session
 from .fiel import Fiel
@@ -15,7 +15,7 @@ class Empresa(Base):
     fiels = relationship(
             'Fiel',
             order_by=Fiel.id,
-            back_populates="empresa",
+            backref=backref('fiel'),
             cascade='all, delete, delete-orphan'
     )
 

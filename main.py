@@ -13,6 +13,8 @@ from PyQt5.QtWidgets import (
 from models.base import Session
 from models.empresa import Empresa
 from models.fiel import Fiel
+from download.certificate import Certificates
+import os
 
 s = Session()
 
@@ -23,27 +25,65 @@ class AddFiel(QDialog, fielDialog):
         self.empresa = empresa
         self.setupUi(self)
         self.setWindowTitle("Agregar Fiel")
+        self.mark_as_active.toggle()
         self.txt_empresa.setText('{} ({})'.format(self.empresa.name, self.empresa.rfc))
+        self.txt_empresa.setReadOnly(True)
         self.btn_get_cer.clicked.connect(self.get_certificate)
         self.btn_get_key.clicked.connect(self.get_key)
 
     def get_certificate(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
-        file_name, other = QFileDialog.getOpenFileName(
+        file_name, _ = QFileDialog.getOpenFileName(
             self,
             "QFileDialog.getOpenFileName()",
             "",
-            "All Files (*);;Certificate Files (*.cer)",
-            options=options)
-        print(file_name)
-        print(other)
+            "Certificate Files (*.cer)",
+            options=options,
+        )
+        self.txt_certificate.setText(file_name)
 
     def get_key(self):
-        print('Get Key')
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,
+            "QFileDialog.getOpenFileName()",
+            "",
+            "Key Files (*.key)",
+            options=options,
+        )
+        self.txt_key.setText(file_name)
 
     def add_fiel(self):
-        print('Adding Fiel')
+        cer_path = self.txt_certificate.text()
+        key_path = self.txt_key.text()
+        passphrase = self.txt_password.text()
+        if cer_path and key_path and passphrase:
+            if os.path.isfile(cer_path) and os.path.isfile(key_path):
+                with open(cer_path, 'rb') as f:
+                    cer_der = f.read()
+
+                with open(key_path, 'rb') as f:
+                    key_der = f.read()
+
+                fiel = Certificates(cer_der, key_der, passphrase)
+
+                dates = fiel.get_cert_dates()
+                data = {
+                    'name': fiel.get_serial(),
+                    'cer_pem': fiel.get_cer_pem(),
+                    'key_pem': fiel.get_key_pem(),
+                    'passphrase': self.txt_password.text(),
+                    'active': self.mark_as_active.isChecked(),
+                    'date_init': dates['start'],
+                    'date_end': dates['end'],
+                    'empresa_id': self.empresa.id,
+
+                }
+
+                fiel_o = Fiel(**data)
+                fiel_o.save_to_db()
 
 
 class AddEmpresa(QDialog, Ui_Dialog):
@@ -155,7 +195,7 @@ class EmpresaFielWindow(QMainWindow, empresa_fielMW):
     def add_fiel(self):
         dlg = AddFiel(self, empresa=self.empresa)
         if dlg.exec_():
-            dlg.add_empresa()
+            dlg.add_fiel()
             self.load_data()
 
         else:
