@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Column, Integer, String, Date, Boolean
 from .base import Base, Session
 from .fiel import Fiel
+from .request import Request
 
 s = Session()
 
@@ -17,6 +18,12 @@ class Empresa(Base):
             order_by=Fiel.id,
             backref=backref('fiel'),
             cascade='all, delete, delete-orphan'
+    )
+    requests = relationship(
+        'Request',
+        order_by=Request.id,
+        backref=backref('request'),
+        cascade='all, delete, delete-orphan'
     )
 
     def __repr__(self):

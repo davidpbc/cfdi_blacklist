@@ -1,7 +1,10 @@
+from ui.main_ui import Ui_MainWindow as mainWindow
 from ui.empresas_ui import Ui_mainWindow as empresaMW
 from ui.empresa_fiel_ui import Ui_MainWindow as empresa_fielMW
 from ui.add_empresa_ui import Ui_Dialog
 from ui.add_fiel_ui import Ui_Dialog as fielDialog
+from ui.add_request_ui import Ui_Dialog as requestDialog
+from PyQt5.QtCore import QDate, pyqtSlot
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -13,10 +16,58 @@ from PyQt5.QtWidgets import (
 from models.base import Session
 from models.empresa import Empresa
 from models.fiel import Fiel
+from models.request import Request
 from download.certificate import Certificates
+from datetime import datetime, timedelta
 import os
 
 s = Session()
+
+
+class AddRequest(QDialog, requestDialog):
+    def __init__(self, *args, empresa=False, fiel=False, **kwargs):
+        super(AddRequest, self).__init__(*args, **kwargs)
+        self.empresa = empresa
+        self.fiel = fiel
+        self.setupUi(self)
+        self.setWindowTitle('Agregar Solicitud de Descatga')
+        self.select_fiel.addItem(fiel.name)
+        for w in (self.date_init, self.date_end):
+            w.setDisplayFormat('ddMMyyyy')
+            w.setCalendarPopup(True)
+        self.setup_date()
+
+    def setup_date(self):
+        now = datetime.now() - timedelta(days=-1)
+        self.date_init.setMinimumDate(QDate(2014, 1, 1))
+        self.date_init.setMaximumDate(QDate(now.year, now.month, now.day))
+        self.date_end.setMinimumDate(QDate(2014, 1, 2))
+        self.date_init.setMaximumDate(QDate(now.year, now.month, now.day))
+
+    def get_request_data(self):
+        init_date = datetime(
+            self.date_init.date().year(),
+            self.date_init.date().month(),
+            self.date_init.date().day()
+        )
+        end_date = datetime(
+            self.date_end.date().year(),
+            self.date_end.date().month(),
+            self.date_end.date().day()
+        )
+        return {
+            'name': self.txt_name.text(),
+            'init_date': init_date,
+            'end_date': end_date,
+            'state': 'local',
+            'fiel_id': self.fiel.id,
+            'empresa_id': self.empresa.id,
+        }
+
+    def add_request(self):
+        data = self.get_request_data()
+        req = Request(**data)
+        req.save_to_db()
 
 
 class AddFiel(QDialog, fielDialog):
@@ -140,22 +191,13 @@ class EmpresaWindow(QMainWindow, empresaMW):
             e.delete()
         self.load_data()
 
-    def print_empresa(self):
-        print('\n')
-        rfc_empresa = self.tbl_empresas.item(
-            self.tbl_empresas.currentRow(),
-            1
-        ).text()
-        e = Empresa.find_by_rfc(rfc_empresa)
-        print("Empresa Seleccionada: {}\nRFC: {}".format(e.name, e.rfc))
-
     def edit_empresa(self):
         rfc_empresa = self.tbl_empresas.item(
             self.tbl_empresas.currentRow(),
             1
         ).text()
         e = Empresa.find_by_rfc(rfc_empresa)
-        self.controller.show_empresas_fiel_window(e)
+        self.controller.show_emp_fiel_window(e)
 
     def add_empresa(self):
         dlg = AddEmpresa(self)
@@ -205,9 +247,59 @@ class EmpresaFielWindow(QMainWindow, empresa_fielMW):
         print("Deleting Fiel")
 
 
+class MainWindow(QMainWindow, mainWindow):
+    def __init__(self, controller, *args, **kwargs):
+        QMainWindow.__init__(self, *args, **kwargs)
+        self.setupUi(self)
+        self.controller = controller
+        self.empresa = False
+        self.load_data()
+        self.btn_load_empresa.clicked.connect(self.load_empresa)
+        self.btn_add_request.clicked.connect(self.add_request)
+        self.actionEmpresas.triggered.connect(self.controller.show_emp_window)
+
+    def load_data(self):
+        empresas = s.query(Empresa).all()
+        self.empresas = {'{} ({})'.format(e.name, e.rfc): e for e in empresas}
+        emp_list = list(self.empresas.keys())
+        self.select_empresa.clear()
+        self.select_empresa.addItems(emp_list)
+
+    def load_empresa(self):
+        selected_emp = str(self.select_empresa.currentText())
+        if selected_emp not in '':
+            self.empresa = self.empresas.get(selected_emp)
+            reqs = Request.get_by_empresa_id(self.empresa.id)
+            self.tbl_request.setRowCount(len(reqs))
+            for i, r in enumerate(reqs):
+                self.tbl_request.setItem(i, 0, QTableWidgetItem(str(r.name)))
+                self.tbl_request.setItem(i, 1, QTableWidgetItem(str(r.init_date)))
+                self.tbl_request.setItem(i, 2, QTableWidgetItem(str(r.end_date)))
+                self.tbl_request.setItem(i, 3, QTableWidgetItem(str(r.state)))
+                self.tbl_request.setItem(i, 4, QTableWidgetItem(str(r.numero_cfdis or '-')))
+                self.tbl_request.setItem(i, 5, QTableWidgetItem(str(r.estado_solicitud or '-')))
+
+    def add_request(self):
+        fiel = Fiel.get_active_fiel(self.empresa.id)
+        if not fiel:
+            return
+        dlg = AddRequest(self, empresa=self.empresa, fiel=fiel)
+        if dlg.exec_():
+            dlg.add_request()
+            self.load_empresa()
+
+        else:
+            print('Cancel!')
+
+
 class Controller:
     def __init__(self):
-        self.window = QMainWindow()
+        pass
+
+    def show_main_window(self):
+        self.window = MainWindow(self)
+        self.window.setWindowTitle('CFDi Blacklist')
+        self.window.show()
 
     def show_empresas_window(self):
         self.ui = EmpresaWindow(self)
@@ -227,10 +319,19 @@ class Controller:
         self.ui.btn_delete.clicked.connect(self.ui.delete_fiel)
         self.window.show()
 
+    def show_emp_window(self):
+        self.window_two = EmpresaWindow(self)
+        self.window_two.show()
+
+    def show_emp_fiel_window(self, e):
+        self.window_two.close()
+        self.window_three = EmpresaFielWindow(self, e)
+        self.window_three.show()
+
 
 if __name__ == '__main__':
     import sys
     app = QApplication([])
     controller = Controller()
-    controller.show_empresas_window()
+    controller.show_main_window()
     sys.exit(app.exec_())
