@@ -1,3 +1,7 @@
+import os
+import base64
+from datetime import datetime, timedelta
+# UI Imports
 from ui.main_ui import Ui_MainWindow as mainWindow
 from ui.empresas_ui import Ui_mainWindow as empresaMW
 from ui.empresa_fiel_ui import Ui_MainWindow as empresa_fielMW
@@ -13,15 +17,42 @@ from PyQt5.QtWidgets import (
     QInputDialog,
     QFileDialog,
 )
+# DB Imports
 from models.base import Session
 from models.empresa import Empresa
 from models.fiel import Fiel
 from models.request import Request
+# API SAT Imports
 from download.certificate import Certificates
-from datetime import datetime, timedelta
-import os
+from download.authenticate import Authenticate
+from download.cfdi_request import RequestDownload
+from download.request_check import RequestCheck
+from download.download import DownloadCFDi
 
 s = Session()
+
+
+def AuthenticateSAT(fiel):
+    return Authenticate(fiel)
+
+
+def RequestDownloadSAT(fiel, token, rfc, date_init, date_end, issuer_rfc, receiver_rfc, req_type='CFDi'):
+    sol = RequestDownload(fiel)
+    return sol.request_download(token, rfc, date_init, date_end, issuer_rfc, receiver_rfc, req_type)
+
+def RequestCheckSAT(fiel, token, rfc, req_id):
+    check = RequestCheck(fiel)
+    return check.check_request(token, rfc, req_id)
+
+def DownloadCFDiSAT(fiel, token, rfc, uuid_pack):
+    download = DownloadCFDi(fiel)
+    return download.download_package(token, rfc, uuid_pack)
+    # pack = data.get('paquete_b64') -> Paquete .zip en cadena base64
+    # base64.b64decode(pack) -> Cadena Binaria para grabar archivo o en BD.
+
+def SaveFile(data, file_path):
+    with open(file_path, 'wb') as f:
+        f.write(data)
 
 
 class AddRequest(QDialog, requestDialog):
@@ -36,6 +67,14 @@ class AddRequest(QDialog, requestDialog):
             w.setDisplayFormat('ddMMyyyy')
             w.setCalendarPopup(True)
         self.setup_date()
+        self.chk_issuer.clicked.connect(self.toggle_receiver)
+        self.chk_receiver.clicked.connect(self.toggle_issuer)
+
+    def toggle_receiver(self):
+        self.chk_receiver.setEnabled(not (self.chk_issuer.isEnabled()))
+
+    def toggle_issuer(self):
+        self.chk_issuer.setEnabled(not (self.chk_receiver.isEnabled()))
 
     def setup_date(self):
         now = datetime.now() - timedelta(days=-1)
@@ -124,8 +163,8 @@ class AddFiel(QDialog, fielDialog):
                 data = {
                     'name': fiel.get_serial(),
                     'cer_pem': fiel.get_cer_pem(),
-                    'key_pem': fiel.get_key_pem(),
-                    'passphrase': self.txt_password.text(),
+                    'key_pem': fiel.get_key_pem(passphrase),
+                    'passphrase': passphrase,
                     'active': self.mark_as_active.isChecked(),
                     'date_init': dates['start'],
                     'date_end': dates['end'],
@@ -233,6 +272,7 @@ class EmpresaFielWindow(QMainWindow, empresa_fielMW):
             self.tbl_fiel.setItem(i, 1, QTableWidgetItem(str(fiel.date_init.strftime(fmt))))
             self.tbl_fiel.setItem(i, 2, QTableWidgetItem(str(fiel.date_end.strftime(fmt))))
             self.tbl_fiel.setItem(i, 3, QTableWidgetItem(str(fiel.active and 'Si' or 'No')))
+        self.tbl_fiel.doubleClicked.connect(self.print_fiel_pems)
 
     def add_fiel(self):
         dlg = AddFiel(self, empresa=self.empresa)
@@ -243,8 +283,23 @@ class EmpresaFielWindow(QMainWindow, empresa_fielMW):
         else:
             print('Cancel!')
 
+    def get_selected_fiel(self):
+        serial = self.tbl_fiel.item(
+            self.tbl_fiel.currentRow(),
+            0
+        ).text()
+        return Fiel.find_by_name(serial)
+
     def delete_fiel(self):
-        print("Deleting Fiel")
+        fiel = self.get_selected_fiel()
+        fiel.delete()
+        self.load_data()
+
+    def print_fiel_pems(self):
+        fiel = self.get_selected_fiel()
+        if fiel:
+            # print(fiel.cer_pem)
+            print(fiel.key_pem)
 
 
 class MainWindow(QMainWindow, mainWindow):
@@ -253,10 +308,21 @@ class MainWindow(QMainWindow, mainWindow):
         self.setupUi(self)
         self.controller = controller
         self.empresa = False
+        self.tbl_request.setColumnHidden(6, True)
         self.load_data()
         self.btn_load_empresa.clicked.connect(self.load_empresa)
         self.btn_add_request.clicked.connect(self.add_request)
         self.actionEmpresas.triggered.connect(self.controller.show_emp_window)
+        self.btn_delete_request.clicked.connect(self.delete_request)
+        self.btn_start.clicked.connect(self.start_request)
+        self.disable_buttons()
+
+    def disable_buttons(self):
+        self.btn_add_request.setEnabled(False)
+        self.btn_delete_request.setEnabled(False)
+        self.btn_start.setEnabled(False)
+        self.btn_check.setEnabled(False)
+        self.btn_download.setEnabled(False)
 
     def load_data(self):
         empresas = s.query(Empresa).all()
@@ -278,6 +344,15 @@ class MainWindow(QMainWindow, mainWindow):
                 self.tbl_request.setItem(i, 3, QTableWidgetItem(str(r.state)))
                 self.tbl_request.setItem(i, 4, QTableWidgetItem(str(r.numero_cfdis or '-')))
                 self.tbl_request.setItem(i, 5, QTableWidgetItem(str(r.estado_solicitud or '-')))
+                self.tbl_request.setItem(i, 6, QTableWidgetItem(str(r.id)))
+            self.btn_add_request.setEnabled(True)
+            self.tbl_request.itemClicked.connect(self.activate_request_buttons)
+
+    def activate_request_buttons(self):
+        self.btn_delete_request.setEnabled(True)
+        self.btn_start.setEnabled(True)
+        self.btn_check.setEnabled(True)
+        self.btn_download.setEnabled(True)
 
     def add_request(self):
         fiel = Fiel.get_active_fiel(self.empresa.id)
@@ -290,6 +365,26 @@ class MainWindow(QMainWindow, mainWindow):
 
         else:
             print('Cancel!')
+
+    def get_selected_request(self):
+        id_req = self.tbl_request.item(
+            self.tbl_request.currentRow(),
+            6
+        ).text()
+        return Request.find_by_id(id_req)
+
+    def delete_request(self):
+        req = self.get_selected_request()
+        req.delete()
+        self.disable_buttons()
+        self.load_empresa()
+
+    def authenticate_request(self, f):
+        pass
+
+    def start_request(self):
+        req = self.get_selected_request()
+        f = Certificates(req.fiel.cer_pem.encode('utf-8'), req.fiel.key_pem.encode('utf-8'), req.fiel.passphrase, pem=True)
 
 
 class Controller:

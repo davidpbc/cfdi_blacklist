@@ -81,7 +81,7 @@
         <string>Generar Reporte</string>
        </property>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>10</x>
@@ -110,7 +110,7 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>10</x>
@@ -146,7 +146,7 @@
        <string>Actualizar Blacklist</string>
       </property>
      </widget>
-     <widget class="QWidget" name="">
+     <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
         <x>10</x>
@@ -175,10 +175,8 @@
        </item>
       </layout>
      </widget>
+     <zorder>layoutWidget</zorder>
      <zorder>frame</zorder>
-     <zorder>txt_cfdi_dir</zorder>
-     <zorder>btn_folder</zorder>
-     <zorder>label</zorder>
      <zorder>text_result</zorder>
      <zorder>label_4</zorder>
      <zorder>btn_update</zorder>
@@ -277,6 +275,11 @@
          <string>Estado SAT</string>
         </property>
        </column>
+       <column>
+        <property name="text">
+         <string>id</string>
+        </property>
+       </column>
       </widget>
       <widget class="QLabel" name="label_6">
        <property name="geometry">
@@ -291,7 +294,7 @@
         <string>Solicitudes de Descarga Masiva</string>
        </property>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>180</x>
@@ -325,7 +328,7 @@
        </layout>
       </widget>
      </widget>
-     <widget class="QWidget" name="">
+     <widget class="QWidget" name="layoutWidget">
       <property name="geometry">
        <rect>
         <x>230</x>

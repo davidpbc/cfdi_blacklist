@@ -28,7 +28,7 @@ class Empresa(Base):
 
     def __repr__(self):
         return "<Empresa(rfc='{}', name='{}', fiels='{}')>" \
-                .format(self.rfc, self.name, self.fiel_ids)
+                .format(self.rfc, self.name, self.fiels)
 
     @classmethod
     def find_by_id(cls, id):

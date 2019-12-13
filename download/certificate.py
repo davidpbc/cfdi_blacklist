@@ -49,10 +49,10 @@ class Certificates():
         return serial
 
     def get_cer_pem(self):
-        return crypto.dump_certificate(crypto.FILETYPE_PEM, self.cer)
+        return str(crypto.dump_certificate(crypto.FILETYPE_PEM, self.cer) ,'utf-8')
 
     def get_key_pem(self, passphrase=None):
-        return self.key.exportKey(format='PEM', passphrase=passphrase, pkcs=8)
+        return str(self.key.exportKey(format='PEM', passphrase=passphrase, pkcs=8), 'utf-8')
 
     def get_cert_dates(self):
         fmt = '%Y%m%d%H%M%S'
