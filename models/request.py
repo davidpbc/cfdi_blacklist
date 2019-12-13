@@ -28,8 +28,8 @@ class Request(Base):
     # Fiel
     fiel_id = Column(ForeignKey('fiel.id'), nullable=False)
     fiel = relationship("Fiel", foreign_keys=fiel_id)
-    # Package
-    fiels = relationship(
+    # Packages
+    packages = relationship(
             'Package',
             order_by=Package.id,
             backref=backref('package'),
