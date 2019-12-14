@@ -1,5 +1,5 @@
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Integer, String, LargeBinary, ForeignKey
+from sqlalchemy import Column, Integer, String, LargeBinary, ForeignKey, Boolean
 from .base import Base, Session
 
 s = Session()
@@ -10,6 +10,7 @@ class Package(Base):
     id = Column(Integer, primary_key=True)
     uuid_pack = Column(String)
     pack_data = Column(LargeBinary)
+    downloaded = Column(Boolean)
     # Request
     request_id = Column(ForeignKey('request.id'), nullable=False)
     request = relationship("Request", foreign_keys=request_id)
@@ -37,3 +38,10 @@ class Package(Base):
     def delete(self):
         s.delete(self)
         s.commit()
+
+    def update(self, values):
+        for key, value in values.items():
+            setattr(self, key, value)
+        
+        s.commit()
+        s.flush()

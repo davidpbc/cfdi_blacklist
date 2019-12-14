@@ -51,3 +51,10 @@ class Fiel(Base):
     def delete(self):
         s.delete(self)
         s.commit()
+
+    def update(self, values):
+        for key, value in values.items():
+            setattr(self, key, value)
+        
+        s.commit()
+        s.flush()

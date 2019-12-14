@@ -22,6 +22,7 @@ from models.base import Session
 from models.empresa import Empresa
 from models.fiel import Fiel
 from models.request import Request
+from models.package import Package
 # API SAT Imports
 from download.certificate import Certificates
 from download.authenticate import Authenticate
@@ -31,6 +32,14 @@ from download.download import DownloadCFDi
 
 s = Session()
 
+ESTADOS_SAT = {
+    '1': 'Aceptada',
+    '2': 'En Proceso',
+    '3': 'Terminada',
+    '4': 'Error',
+    '5': 'Rechazada',
+    '6': 'Vencida',
+}
 
 def AuthenticateSAT(fiel):
     return Authenticate(fiel)
@@ -101,6 +110,8 @@ class AddRequest(QDialog, requestDialog):
             'state': 'local',
             'fiel_id': self.fiel.id,
             'empresa_id': self.empresa.id,
+            'issuer': self.chk_issuer.isChecked(),
+            'receiver': self.chk_receiver.isChecked(),
         }
 
     def add_request(self):
@@ -169,7 +180,6 @@ class AddFiel(QDialog, fielDialog):
                     'date_init': dates['start'],
                     'date_end': dates['end'],
                     'empresa_id': self.empresa.id,
-
                 }
 
                 fiel_o = Fiel(**data)
@@ -243,6 +253,7 @@ class EmpresaWindow(QMainWindow, empresaMW):
         if dlg.exec_():
             dlg.add_empresa()
             self.load_data()
+            self.controller.reload_main_window()
 
         else:
             print('Cancel!')
@@ -315,6 +326,7 @@ class MainWindow(QMainWindow, mainWindow):
         self.actionEmpresas.triggered.connect(self.controller.show_emp_window)
         self.btn_delete_request.clicked.connect(self.delete_request)
         self.btn_start.clicked.connect(self.start_request)
+        self.btn_check.clicked.connect(self.check_request)
         self.disable_buttons()
 
     def disable_buttons(self):
@@ -345,7 +357,8 @@ class MainWindow(QMainWindow, mainWindow):
                 self.tbl_request.setItem(i, 4, QTableWidgetItem(str(r.numero_cfdis or '-')))
                 self.tbl_request.setItem(i, 5, QTableWidgetItem(str(r.estado_solicitud or '-')))
                 self.tbl_request.setItem(i, 6, QTableWidgetItem(str(r.id)))
-            self.btn_add_request.setEnabled(True)
+            if self.empresa.fiels:
+                self.btn_add_request.setEnabled(True)
             self.tbl_request.itemClicked.connect(self.activate_request_buttons)
 
     def activate_request_buttons(self):
@@ -379,12 +392,83 @@ class MainWindow(QMainWindow, mainWindow):
         self.disable_buttons()
         self.load_empresa()
 
+    def get_start_attributes(self, req):
+        return {
+            'requester_rfc': req.empresa.rfc,
+            'init_date': req.init_date,
+            'end_date': req.end_date + timedelta(days=1),
+            'issuer_rfc': req.issuer and req.empresa.rfc or None,
+            'receiver_rfc': req.receiver and req.empresa.rfc or None,
+            'req_type': 'CFDI',
+        }
+
     def authenticate_request(self, f):
-        pass
+        auth = Authenticate(f)
+        return auth.get_token()
 
     def start_request(self):
         req = self.get_selected_request()
-        f = Certificates(req.fiel.cer_pem.encode('utf-8'), req.fiel.key_pem.encode('utf-8'), req.fiel.passphrase, pem=True)
+        if req.state != 'local':
+            return
+        f = Certificates(
+            req.fiel.cer_pem.encode('utf-8'),
+            req.fiel.key_pem.encode('utf-8'),
+            req.fiel.passphrase,
+            pem=True
+        )
+        sol = RequestDownload(f)
+        req_attrs = self.get_start_attributes(req)
+        req_attrs['token'] = self.authenticate_request(f)
+        print(req_attrs)
+        data = sol.request_download(**req_attrs)
+        print(data)
+        values = {
+            'state': 'iniciada',
+        }
+        if data.get('id_solicitud'):
+            values['uuid_request'] = data['id_solicitud']
+        if data.get('cod_estatus'):
+            values['cod_estatus'] = data['cod_estatus']
+        if data.get('mensaje'):
+            values['mensaje'] = data['mensaje']
+        req.update(values)
+        self.load_empresa()
+
+    def check_request(self):
+        req = self.get_selected_request()
+        if req.state not in ('iniciada', 'verificada'):
+            return
+        f = Certificates(
+            req.fiel.cer_pem.encode('utf-8'),
+            req.fiel.key_pem.encode('utf-8'),
+            req.fiel.passphrase,
+            pem=True
+        )
+        check = RequestCheck(f)
+        token = self.authenticate_request(f)
+        data = check.check_request(token, req.empresa.rfc, req.uuid_request)
+        print(data)
+        values = {
+            'state': 'verificada',
+        }
+        if data.get('cod_estatus'):
+            values['cod_estatus'] = data['cod_estatus']
+        if data.get('estado_solicitud'):
+            if ESTADOS_SAT.get(data['estado_solicitud']):
+                values['estado_solicitud'] = ESTADOS_SAT[data['estado_solicitud']]
+            else:
+                values['estado_solicitud'] = data['estado_solicitud']
+        if data.get('codigo_estado_solicitud'):
+            values['codigo_estado_solicitud'] = data['codigo_estado_solicitud']
+        if data.get('numero_cfdis'):
+            values['numero_cfdis'] = int(data['numero_cfdis'])
+        if data.get('mensaje'):
+            values['mensaje'] = data['mensaje']
+        req.update(values)
+        for paq in data.get('paquetes'):
+            p = Package(uuid_pack=paq, request_id=req.id)
+            p.save_to_db()
+        self.load_empresa()
 
 
 class Controller:
@@ -395,6 +479,9 @@ class Controller:
         self.window = MainWindow(self)
         self.window.setWindowTitle('CFDi Blacklist')
         self.window.show()
+
+    def reload_main_window(self):
+        self.window.load_data()
 
     def show_empresas_window(self):
         self.ui = EmpresaWindow(self)
