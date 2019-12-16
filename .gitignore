@@ -132,4 +132,5 @@ dmypy.json
 .vscode/
 FIEL/
 sample.zip
+sample.txt
 test_*

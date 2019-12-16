@@ -28,7 +28,7 @@
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
-      <string>Tab 1</string>
+      <string>Consulta</string>
      </attribute>
      <widget class="QPlainTextEdit" name="text_result">
       <property name="geometry">
@@ -183,7 +183,7 @@
     </widget>
     <widget class="QWidget" name="tab_2">
      <attribute name="title">
-      <string>Tab 2</string>
+      <string>Descarga</string>
      </attribute>
      <widget class="QComboBox" name="select_empresa">
       <property name="geometry">
@@ -277,6 +277,11 @@
        </column>
        <column>
         <property name="text">
+         <string>Mensaje</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
          <string>id</string>
         </property>
        </column>
@@ -321,7 +326,7 @@
         <item>
          <widget class="QPushButton" name="btn_download">
           <property name="text">
-           <string>Descargar</string>
+           <string>Paquetes</string>
           </property>
          </widget>
         </item>

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from ui.main_ui import Ui_MainWindow as mainWindow
 from ui.empresas_ui import Ui_mainWindow as empresaMW
 from ui.empresa_fiel_ui import Ui_MainWindow as empresa_fielMW
+from ui.request_packages_ui import Ui_MainWindow as req_packMW
 from ui.add_empresa_ui import Ui_Dialog
 from ui.add_fiel_ui import Ui_Dialog as fielDialog
 from ui.add_request_ui import Ui_Dialog as requestDialog
@@ -41,27 +42,10 @@ ESTADOS_SAT = {
     '6': 'Vencida',
 }
 
-def AuthenticateSAT(fiel):
-    return Authenticate(fiel)
 
-
-def RequestDownloadSAT(fiel, token, rfc, date_init, date_end, issuer_rfc, receiver_rfc, req_type='CFDi'):
-    sol = RequestDownload(fiel)
-    return sol.request_download(token, rfc, date_init, date_end, issuer_rfc, receiver_rfc, req_type)
-
-def RequestCheckSAT(fiel, token, rfc, req_id):
-    check = RequestCheck(fiel)
-    return check.check_request(token, rfc, req_id)
-
-def DownloadCFDiSAT(fiel, token, rfc, uuid_pack):
-    download = DownloadCFDi(fiel)
-    return download.download_package(token, rfc, uuid_pack)
-    # pack = data.get('paquete_b64') -> Paquete .zip en cadena base64
-    # base64.b64decode(pack) -> Cadena Binaria para grabar archivo o en BD.
-
-def SaveFile(data, file_path):
-    with open(file_path, 'wb') as f:
-        f.write(data)
+def authenticate_request(fiel):
+        auth = Authenticate(fiel)
+        return auth.get_token()
 
 
 class AddRequest(QDialog, requestDialog):
@@ -212,6 +196,114 @@ class AddEmpresa(QDialog, Ui_Dialog):
                 e.save_to_db()
 
 
+class ReqPackagesWindow(QMainWindow, req_packMW):
+    def __init__(self, controller, req, *args, **kwargs):
+        QMainWindow.__init__(self, *args, **kwargs)
+        self.setupUi(self)
+        self.controller = controller
+        self.setWindowTitle('CFDi Blacklist - Paquetes')
+        self.tbl_packages.setColumnHidden(2, True)
+        self.btn_search.clicked.connect(self.get_dir)
+        self.btn_download.clicked.connect(self.download_package)
+        self.disable_buttons()
+        if req:
+            self.req = req
+            self.load_data()
+            self.load_packages()
+
+    def load_data(self):
+        self.select_request.clear()
+        self.select_request.addItems([self.req.name])
+
+    def load_packages(self):
+        packages = Package.get_by_request_id(self.req.id)
+        self.tbl_packages.setRowCount(len(packages))
+        for i, p in enumerate(packages):
+            self.tbl_packages.setItem(i, 0, QTableWidgetItem(str(p.uuid_pack)))
+            self.tbl_packages.setItem(i, 1, QTableWidgetItem(str(p.downloaded and 'Si' or 'No')))
+            self.tbl_packages.setItem(i, 2, QTableWidgetItem(str(p.id)))
+        self.tbl_packages.itemClicked.connect(self.enable_buttons)
+
+    def enable_buttons(self):
+        self.btn_search.setEnabled(True)
+        self.btn_download.setEnabled(True)
+
+    def disable_buttons(self):
+        self.btn_search.setEnabled(False)
+        self.btn_download.setEnabled(False)
+
+    def get_dir(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        dir_name = QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory",
+            options=options,
+        )
+        self.txt_folder.setText(dir_name)
+
+    def get_selected_package(self):
+        id_pack = self.tbl_packages.item(
+            self.tbl_packages.currentRow(),
+            2
+        ).text()
+        return Package.find_by_id(id_pack)
+
+    def download_package(self):
+        pack = self.get_selected_package()
+        if not pack:
+            return
+        pack_data = False
+        if not pack.downloaded:
+            pack_data = self.download_package_sat(pack)
+        else:
+            pack_data = base64.b64encode(pack.pack_data)
+        
+        if pack_data:
+            self.store_data(pack_data)
+
+    def download_package_sat(self, pack):
+        f = Certificates(
+            self.req.fiel.cer_pem.encode('utf-8'),
+            self.req.fiel.key_pem.encode('utf-8'),
+            self.req.fiel.passphrase,
+            pem=True
+        )
+        if pack and f:
+            print('Intentando Descarga')
+            token = authenticate_request(f)
+            download = DownloadCFDi(f)
+            data = download.download_package(token, self.req.empresa.rfc, pack.uuid_pack)
+            print(data.get('cod_estatus'))
+            print(data.get('mensaje'))
+            pack_data = data.get('paquete_b64')
+            
+            pack.update({
+                'pack_data': base64.b64decode(pack_data),
+                'downloaded': True
+            })
+            return pack_data
+
+    def get_file_path(self, file_name):
+        return '{}{}{}.zip'.format(
+            self.txt_folder.text(),
+            os.path.sep,
+            file_name,
+        )
+
+    def store_data(self, pack_data):
+        file_name = self.txt_name.text() and self.txt_name.text() or 'paquete_cfdi'
+        file_path = self.get_file_path(file_name)
+        i = 1
+        while os.path.isfile(file_path):
+            fn = '{}({})'.format(file_name, i)
+            file_path = self.get_file_path(fn)
+            i += 1
+        with open(file_path, 'wb') as f:
+            f.write(base64.b64decode(pack_data))
+        print('Archivo guardado en Disco')
+
+
 class EmpresaWindow(QMainWindow, empresaMW):
     def __init__(self, controller, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
@@ -318,8 +410,9 @@ class MainWindow(QMainWindow, mainWindow):
         QMainWindow.__init__(self, *args, **kwargs)
         self.setupUi(self)
         self.controller = controller
+        # Descarga
         self.empresa = False
-        self.tbl_request.setColumnHidden(6, True)
+        self.tbl_request.setColumnHidden(7, True)
         self.load_data()
         self.btn_load_empresa.clicked.connect(self.load_empresa)
         self.btn_add_request.clicked.connect(self.add_request)
@@ -327,7 +420,16 @@ class MainWindow(QMainWindow, mainWindow):
         self.btn_delete_request.clicked.connect(self.delete_request)
         self.btn_start.clicked.connect(self.start_request)
         self.btn_check.clicked.connect(self.check_request)
+        self.btn_download.clicked.connect(self.download_package)
         self.disable_buttons()
+        # Consulta
+        self.btn_folder.clicked.connect(self.search_folder)
+
+    def search_folder(self):
+        if not self.txt_cfdi_dir.text():
+            print('Nada')
+        else:
+            print('Algo')
 
     def disable_buttons(self):
         self.btn_add_request.setEnabled(False)
@@ -356,7 +458,8 @@ class MainWindow(QMainWindow, mainWindow):
                 self.tbl_request.setItem(i, 3, QTableWidgetItem(str(r.state)))
                 self.tbl_request.setItem(i, 4, QTableWidgetItem(str(r.numero_cfdis or '-')))
                 self.tbl_request.setItem(i, 5, QTableWidgetItem(str(r.estado_solicitud or '-')))
-                self.tbl_request.setItem(i, 6, QTableWidgetItem(str(r.id)))
+                self.tbl_request.setItem(i, 6, QTableWidgetItem(str(r.mensaje or '-')))
+                self.tbl_request.setItem(i, 7, QTableWidgetItem(str(r.id)))
             if self.empresa.fiels:
                 self.btn_add_request.setEnabled(True)
             self.tbl_request.itemClicked.connect(self.activate_request_buttons)
@@ -382,7 +485,7 @@ class MainWindow(QMainWindow, mainWindow):
     def get_selected_request(self):
         id_req = self.tbl_request.item(
             self.tbl_request.currentRow(),
-            6
+            7
         ).text()
         return Request.find_by_id(id_req)
 
@@ -402,10 +505,6 @@ class MainWindow(QMainWindow, mainWindow):
             'req_type': 'CFDI',
         }
 
-    def authenticate_request(self, f):
-        auth = Authenticate(f)
-        return auth.get_token()
-
     def start_request(self):
         req = self.get_selected_request()
         if req.state != 'local':
@@ -418,7 +517,7 @@ class MainWindow(QMainWindow, mainWindow):
         )
         sol = RequestDownload(f)
         req_attrs = self.get_start_attributes(req)
-        req_attrs['token'] = self.authenticate_request(f)
+        req_attrs['token'] = authenticate_request(f)
         print(req_attrs)
         data = sol.request_download(**req_attrs)
         print(data)
@@ -436,6 +535,7 @@ class MainWindow(QMainWindow, mainWindow):
 
     def check_request(self):
         req = self.get_selected_request()
+        has_package = bool(req.packages)
         if req.state not in ('iniciada', 'verificada'):
             return
         f = Certificates(
@@ -445,7 +545,7 @@ class MainWindow(QMainWindow, mainWindow):
             pem=True
         )
         check = RequestCheck(f)
-        token = self.authenticate_request(f)
+        token = authenticate_request(f)
         data = check.check_request(token, req.empresa.rfc, req.uuid_request)
         print(data)
         values = {
@@ -465,10 +565,15 @@ class MainWindow(QMainWindow, mainWindow):
         if data.get('mensaje'):
             values['mensaje'] = data['mensaje']
         req.update(values)
-        for paq in data.get('paquetes'):
-            p = Package(uuid_pack=paq, request_id=req.id)
-            p.save_to_db()
+        if not has_package:
+            for paq in data.get('paquetes'):
+                p = Package(uuid_pack=paq, request_id=req.id, downloaded=False)
+                p.save_to_db()
         self.load_empresa()
+
+    def download_package(self):
+        req = self.get_selected_request()
+        self.controller.show_package_window(req)
 
 
 class Controller:
@@ -509,6 +614,10 @@ class Controller:
         self.window_two.close()
         self.window_three = EmpresaFielWindow(self, e)
         self.window_three.show()
+
+    def show_package_window(self, req):
+        self.window_two = ReqPackagesWindow(self, req)
+        self.window_two.show()
 
 
 if __name__ == '__main__':
