@@ -24,7 +24,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -136,7 +136,7 @@
      <widget class="QPushButton" name="btn_update">
       <property name="geometry">
        <rect>
-        <x>480</x>
+        <x>10</x>
         <y>380</y>
         <width>137</width>
         <height>25</height>
@@ -175,11 +175,25 @@
        </item>
       </layout>
      </widget>
+     <widget class="QPushButton" name="btn_process_dir">
+      <property name="geometry">
+       <rect>
+        <x>490</x>
+        <y>380</y>
+        <width>140</width>
+        <height>25</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Procesar Directorio</string>
+      </property>
+     </widget>
      <zorder>layoutWidget</zorder>
      <zorder>frame</zorder>
      <zorder>text_result</zorder>
      <zorder>label_4</zorder>
      <zorder>btn_update</zorder>
+     <zorder>btn_process_dir</zorder>
     </widget>
     <widget class="QWidget" name="tab_2">
      <attribute name="title">

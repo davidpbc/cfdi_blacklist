@@ -6,31 +6,45 @@ import urllib.request
 import shutil
 import os
 
-
-
 s = Session()
 
-print(Blacklist.__tablename__)
-recreate_table(Blacklist)
-
 # URL General SAT
-url = "http://omawww.sat.gob.mx/cifras_sat/Documents/"
-script_path = os.path.dirname(__file__)
+SAT_URL = "http://omawww.sat.gob.mx/cifras_sat/Documents/"
 
-path_def = os.path.join(script_path, "Definitivos.csv")
-try:
-    with urllib.request.urlopen(url + 'Definitivos.csv') as response, open(path_def, 'wb') as out_file:
-        shutil.copyfileobj(response, out_file)
-except:
-    pass
-load_def_csv(path_def)
 
-path_pre = os.path.join(script_path, "Presuntos.csv")
-try:
-    with urllib.request.urlopen(url + 'Presuntos.csv') as response, open(path_pre, 'wb') as out_file:
-        shutil.copyfileobj(response, out_file)
-except:
-    pass
-load_pre_csv(path_pre)
+def recreate_blacklist():
+    recreate_table(Blacklist)
 
-blacklists = s.query(Blacklist).all()
+
+def update_blacklist(file_path, definitivos=False):
+    if definitivos:
+        load_def_csv(file_path)
+    else:
+        load_pre_csv(file_path)
+
+
+def download_file(file_path, definitivos=False):
+    filename = 'Presuntos.csv'
+    if definitivos:
+        filename = 'Definitivos.csv'
+    try:
+        with urllib.request.urlopen(SAT_URL + filename) as res, open(file_path, 'wb') as f:
+            shutil.copyfileobj(res, f)
+            return True
+    except:
+        return False
+
+
+def process_blacklist_update():
+    recreate_blacklist()
+    script_path = os.path.dirname(__file__)
+    path_def = os.path.join(script_path, "Definitivos.csv")
+    path_pre = os.path.join(script_path, "Presuntos.csv")
+    download_file(path_def, definitivos=True)
+    download_file(path_pre)
+    update_blacklist(path_def, definitivos=True)
+    update_blacklist(path_pre)
+
+
+if __name__ == '__main__':
+    process_blacklist_update()

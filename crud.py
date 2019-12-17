@@ -120,11 +120,6 @@ def find_by_rfc(rfcs):
     with session_scope() as s:
         q = s.query(Blacklist)
         q = q.filter(Blacklist.rfc.in_(rfcs)).all()
-        # blacklisted = s.query(Blacklist).filter_by(rfc=rfc).first()
-        # if blacklisted:
-        #    return blacklisted.json()
-        # else:
-        #    return False
         if q:
             a = []
             for res in q:

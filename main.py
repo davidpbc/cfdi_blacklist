@@ -24,12 +24,16 @@ from models.empresa import Empresa
 from models.fiel import Fiel
 from models.request import Request
 from models.package import Package
+from models.blacklist import Blacklist
 # API SAT Imports
 from download.certificate import Certificates
 from download.authenticate import Authenticate
 from download.cfdi_request import RequestDownload
 from download.request_check import RequestCheck
 from download.download import DownloadCFDi
+# Local Imports
+from update_blacklist import process_blacklist_update
+from cfdi_xml import CfdiXml
 
 s = Session()
 
@@ -423,13 +427,110 @@ class MainWindow(QMainWindow, mainWindow):
         self.btn_download.clicked.connect(self.download_package)
         self.disable_buttons()
         # Consulta
-        self.btn_folder.clicked.connect(self.search_folder)
+        self.btn_folder.clicked.connect(self.search_cfdi_folder)
+        self.btn_report.clicked.connect(self.search_report_folder)
+        self.btn_process_dir.clicked.connect(self.process_dir)
+        self.btn_update.clicked.connect(self.update_blacklist)
+        self.txt_cfdi_dir.setReadOnly(True)
+        self.txt_dir_report.setReadOnly(True)
+        self.text_result.setReadOnly(True)
+        self.txt_report_name.setText('reporte_cfdi')
 
-    def search_folder(self):
-        if not self.txt_cfdi_dir.text():
-            print('Nada')
+    def process_folder(self, folder_path):
+        errors = 0
+        lines = []
+        for root, _, files in os.walk(folder_path):
+            for name in files:
+                if name.split('.')[-1].upper() in ('XML'):
+                    filename = '{}{}{}'.format(root, os.sep, name)
+                    lines.append('-\n')
+                    lines.append('- Consultando {}'.format(filename))
+                    err, line = self.process_xml_file(filename)
+                    errors += err
+                    lines.append(line)
+        return errors, lines
+
+
+    def process_xml_file(self, filename):
+        print('Buscando problemas en {}\n'.format(filename))
+        fileCfdi = CfdiXml(filename)
+        rfcs = [fileCfdi.get_rfc_emisor(), fileCfdi.get_rfc_receptor()]
+        blacklist = Blacklist.find_by_rfcs(rfcs=rfcs)
+        e = 0
+        if blacklist:
+            for bl in blacklist:
+                archivo = bl.get('defi') and 'Definitivos' or 'Presuntos'
+                e = 1
+                line = 'Problema con archivo {}\nContiene RFC: {} de la persona {}\n' \
+                    'El cual esta indicado en la línea {} del archivo de {} del SAT\n' \
+                    .format(
+                        filename,
+                        bl.get('rfc'),
+                        bl.get('name'),
+                        bl.get('csv_line'),
+                        archivo)
+                print(line)
         else:
-            print('Algo')
+            line = 'Ningún problema detectado.'
+            print(line)
+        print('-----------------------------------------\n')
+        return e, line
+
+    def write_report(self, lines):
+        report_name = '{}{}{}.txt'.format(
+            self.txt_dir_report.text(),
+            os.path.sep,
+            self.txt_report_name.text(),
+        )
+        with open(report_name, 'w') as f:
+            f.write('\n'.join(lines))
+
+    def process_dir(self):
+        print('Procesando Archivos')
+        folder_path = self.txt_cfdi_dir.text()
+
+        if os.path.isdir(folder_path):
+            e, l = self.process_folder(folder_path)
+            if e == 0:
+                self.text_result.setPlainText(
+                    'Procesamiento del Directorio completado, no se encontraron errores'
+                )
+            else:
+                self.text_result.setPlainText(
+                    'Procesamiento del Directorio completado, se encontraron {} ' \
+                    'error(es). Consulte el reporte para más detalles.' \
+                        .format(e)
+                )
+
+            if self.chk_report.isChecked():
+                self.write_report(l)
+        else:
+            self.text_result.setPlainText('Error! El directorio seleccionado es inválido.')
+
+    def update_blacklist(self):
+        print('Actualizando la Base de Datos del SAT.')
+        process_blacklist_update()
+        print('Actualización Terminada Satisfactoriamente.')
+
+    def search_cfdi_folder(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        dir_name = QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory",
+            options=options,
+        )
+        self.txt_cfdi_dir.setText(dir_name)
+
+    def search_report_folder(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        dir_name = QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory",
+            options=options,
+        )
+        self.txt_dir_report.setText(dir_name)
 
     def disable_buttons(self):
         self.btn_add_request.setEnabled(False)
