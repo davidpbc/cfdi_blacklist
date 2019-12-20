@@ -38,6 +38,7 @@ from cfdi_xml import CfdiXml
 s = Session()
 
 ESTADOS_SAT = {
+    '0': 'Error Inesperado',
     '1': 'Aceptada',
     '2': 'En Proceso',
     '3': 'Terminada',
@@ -619,12 +620,13 @@ class MainWindow(QMainWindow, mainWindow):
         sol = RequestDownload(f)
         req_attrs = self.get_start_attributes(req)
         req_attrs['token'] = authenticate_request(f)
-        print(req_attrs)
+        # print(req_attrs)
+        print('Iniciando Solicitud de {} en el SAT'.format(req.name))
         data = sol.request_download(**req_attrs)
         print(data)
-        values = {
-            'state': 'iniciada',
-        }
+        values = {}
+        if data.get('cod_estatus') == '5000':
+            values['state'] = 'iniciada'
         if data.get('id_solicitud'):
             values['uuid_request'] = data['id_solicitud']
         if data.get('cod_estatus'):
@@ -636,6 +638,7 @@ class MainWindow(QMainWindow, mainWindow):
 
     def check_request(self):
         req = self.get_selected_request()
+        print('Realizando verificación de: {}'.format(req.name))
         has_package = bool(req.packages)
         if req.state not in ('iniciada', 'verificada'):
             return
