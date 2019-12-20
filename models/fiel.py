@@ -29,6 +29,10 @@ class Fiel(Base):
         return s.query(cls).filter_by(name=name).first() or False
 
     @classmethod
+    def find_by_id(cls, id):
+        return s.query(cls).get(id) or False
+
+    @classmethod
     def get_active_fiel(cls, empresa_id):
         f = s.query(cls).filter_by(
             empresa_id=empresa_id, active=True).first()

@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QFileDialog,
 )
 # DB Imports
-from models.base import Session
+from models.base import Session, engine
 from models.empresa import Empresa
 from models.fiel import Fiel
 from models.request import Request
@@ -34,6 +34,7 @@ from download.download import DownloadCFDi
 # Local Imports
 from update_blacklist import process_blacklist_update
 from cfdi_xml import CfdiXml
+from crud import recreate_database
 
 s = Session()
 
@@ -562,7 +563,7 @@ class MainWindow(QMainWindow, mainWindow):
                 self.tbl_request.setItem(i, 5, QTableWidgetItem(str(r.estado_solicitud or '-')))
                 self.tbl_request.setItem(i, 6, QTableWidgetItem(str(r.mensaje or '-')))
                 self.tbl_request.setItem(i, 7, QTableWidgetItem(str(r.id)))
-            if self.empresa.fiels:
+            if len(Fiel.get_by_empresa_id(self.empresa.id)) > 0:
                 self.btn_add_request.setEnabled(True)
             self.tbl_request.itemClicked.connect(self.activate_request_buttons)
 
@@ -639,18 +640,22 @@ class MainWindow(QMainWindow, mainWindow):
     def check_request(self):
         req = self.get_selected_request()
         print('Realizando verificación de: {}'.format(req.name))
-        has_package = bool(req.packages)
+        has_package = len(Package.get_by_request_id(req.id)) > 0 and True or False
         if req.state not in ('iniciada', 'verificada'):
             return
+        fiel = Fiel.find_by_id(req.fiel_id)
+        if not fiel:
+            print('La solicitud no tiene una Fiel Válida')
+            return
         f = Certificates(
-            req.fiel.cer_pem.encode('utf-8'),
-            req.fiel.key_pem.encode('utf-8'),
-            req.fiel.passphrase,
+            fiel.cer_pem.encode('utf-8'),
+            fiel.key_pem.encode('utf-8'),
+            fiel.passphrase,
             pem=True
         )
         check = RequestCheck(f)
         token = authenticate_request(f)
-        data = check.check_request(token, req.empresa.rfc, req.uuid_request)
+        data = check.check_request(token, self.empresa.rfc, req.uuid_request)
         print(data)
         values = {
             'state': 'verificada',
@@ -726,6 +731,12 @@ class Controller:
 
 if __name__ == '__main__':
     import sys
+    try:
+        s.query(Empresa).all()
+        print('Base de Datos encontrada')
+    except Exception:
+        print('Creando BD')
+        recreate_database()
     app = QApplication([])
     controller = Controller()
     controller.show_main_window()
