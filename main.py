@@ -542,11 +542,12 @@ class MainWindow(QMainWindow, mainWindow):
         self.btn_download.setEnabled(False)
 
     def load_data(self):
-        empresas = s.query(Empresa).all()
-        self.empresas = {'{} ({})'.format(e.name, e.rfc): e for e in empresas}
-        emp_list = list(self.empresas.keys())
-        self.select_empresa.clear()
-        self.select_empresa.addItems(emp_list)
+        empresas = Empresa.find_all()
+        if empresas:
+            self.empresas = {'{} ({})'.format(e.name, e.rfc): e for e in empresas}
+            emp_list = list(self.empresas.keys())
+            self.select_empresa.clear()
+            self.select_empresa.addItems(emp_list)
 
     def load_empresa(self):
         selected_emp = str(self.select_empresa.currentText())

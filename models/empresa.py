@@ -31,6 +31,10 @@ class Empresa(Base):
                 .format(self.rfc, self.name, self.fiels)
 
     @classmethod
+    def find_all(cls):
+        return s.query(cls).all()
+
+    @classmethod
     def find_by_id(cls, id):
         e = s.query(cls).filter_by(id=id).first()
         if e:
@@ -44,7 +48,7 @@ class Empresa(Base):
 
     @classmethod
     def find_by_name(cls, name):
-        e = s.query(cls).filter_by(name=name).first
+        e = s.query(cls).filter_by(name=name).first()
         if e:
             return e
 
