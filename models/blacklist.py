@@ -16,6 +16,10 @@ class Blacklist(Base):
     def_fecha = Column(Date)
 
     @classmethod
+    def find_all(cls):
+        return s.query(cls).all()
+
+    @classmethod
     def find_by_rfcs(cls, rfcs):
         q = s.query(cls)
         q = q.filter(cls.rfc.in_(rfcs)).all()

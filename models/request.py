@@ -41,6 +41,10 @@ class Request(Base):
                 .format(self.name, self.empresa.name)
 
     @classmethod
+    def find_all(cls):
+        return s.query(cls).all()
+
+    @classmethod
     def find_by_id(cls, id):
         return s.query(cls).filter_by(id=id).first() or False
 

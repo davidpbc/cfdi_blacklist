@@ -25,6 +25,10 @@ class Fiel(Base):
                 .format(self.name, self.empresa.name)
 
     @classmethod
+    def find_all(cls):
+        return s.query(cls).all()
+
+    @classmethod
     def find_by_name(cls, name):
         return s.query(cls).filter_by(name=name).first() or False
 
