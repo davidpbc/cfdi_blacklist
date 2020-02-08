@@ -449,32 +449,36 @@ class MainWindow(QMainWindow, mainWindow):
                     lines.append('- Consultando {}'.format(filename))
                     err, line = self.process_xml_file(filename)
                     errors += err
-                    lines.append(line)
+                    lines.append((err, line))
         return errors, lines
 
 
     def process_xml_file(self, filename):
         print('Buscando problemas en {}\n'.format(filename))
-        fileCfdi = CfdiXml(filename)
-        rfcs = [fileCfdi.get_rfc_emisor(), fileCfdi.get_rfc_receptor()]
-        blacklist = Blacklist.find_by_rfcs(rfcs=rfcs)
-        e = 0
-        if blacklist:
-            for bl in blacklist:
-                archivo = bl.get('defi') and 'Definitivos' or 'Presuntos'
-                e = 1
-                line = 'Problema con archivo {}\nContiene RFC: {} de la persona {}\n' \
-                    'El cual esta indicado en la línea {} del archivo de {} del SAT\n' \
-                    .format(
-                        filename,
-                        bl.get('rfc'),
-                        bl.get('name'),
-                        bl.get('csv_line'),
-                        archivo)
+        try:
+            fileCfdi = CfdiXml(filename)
+            rfcs = [fileCfdi.get_rfc_emisor(), fileCfdi.get_rfc_receptor()]
+            blacklist = Blacklist.find_by_rfcs(rfcs=rfcs)
+            e = 0
+            if blacklist:
+                for bl in blacklist:
+                    archivo = bl.get('defi') and 'Definitivos' or 'Presuntos'
+                    e = 1
+                    line = 'Problema con archivo {}\nRFC: {}\nPersona {}\n' \
+                        'Línea {} del archivo de {} del SAT\n' \
+                        .format(
+                            filename,
+                            bl.get('rfc'),
+                            bl.get('name'),
+                            bl.get('csv_line'),
+                            archivo)
+                    print(line)
+            else:
+                line = 'Ningún problema detectado.'
                 print(line)
-        else:
-            line = 'Ningún problema detectado.'
-            print(line)
+        except:
+            e = 1
+            line = 'Error de Lectura en el archivo:\n{}'.format(filename)
         print('-----------------------------------------\n')
         return e, line
 
@@ -485,24 +489,28 @@ class MainWindow(QMainWindow, mainWindow):
             self.txt_report_name.text(),
         )
         with open(report_name, 'w') as f:
-            f.write('\n'.join(lines))
+            f.write('\n'.join([l[1] for l in lines]))
 
     def process_dir(self):
         print('Procesando Archivos')
+        self.text_result.setPlainText(
+            'Procesando Directorio de Archivos, espere por favor.'
+        )
         folder_path = self.txt_cfdi_dir.text()
 
         if os.path.isdir(folder_path):
             e, l = self.process_folder(folder_path)
             if e == 0:
                 self.text_result.setPlainText(
-                    'Procesamiento del Directorio completado, no se encontraron errores'
+                    'Procesamiento del Directorio completado.\nSe procesaron {} archivos '
+                    'en total. No se encontraron errores'.format(len(l))
                 )
             else:
-                self.text_result.setPlainText(
-                    'Procesamiento del Directorio completado, se encontraron {} ' \
-                    'error(es). Consulte el reporte para más detalles.' \
-                        .format(e)
-                )
+                text = 'Procesamiento del Directorio completado.\nSe encontraron {} ' \
+                        'error(es). De un total de {} archivos.\n\n' \
+                        .format(e, len(l))
+                errors = '\n- '.join([line[1] for line in l if line[0] == 1])
+                self.text_result.setPlainText(text + errors)
 
             if self.chk_report.isChecked():
                 self.write_report(l)
