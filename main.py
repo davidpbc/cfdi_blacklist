@@ -472,13 +472,12 @@ class MainWindow(QMainWindow, mainWindow):
                             bl.get('name'),
                             bl.get('csv_line'),
                             archivo)
-                    print(line)
             else:
                 line = 'Ningún problema detectado.'
-                print(line)
         except:
             e = 1
             line = 'Error de Lectura en el archivo:\n{}'.format(filename)
+        print(line)
         print('-----------------------------------------\n')
         return e, line
 
